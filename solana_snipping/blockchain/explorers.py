@@ -1,14 +1,14 @@
 import asyncio
 from datetime import datetime
 import json
-import sys
+import sys, pytz, html
 import time
 import traceback
 from zoneinfo import ZoneInfo
 import aiohttp
 import httpx
 from loguru import logger
-from proxy_pool import get_full_pool
+#from proxy_pool import get_full_pool
 
 from solana_snipping.tg import send_msg_log
 
@@ -373,14 +373,34 @@ class RadiumPool(SolscanAPI):
 
 async def send_in_tg(mint: str):
     solscan = SolscanAPI()
-    account_info = json.dumps(await solscan.get_acount_token(mint), ensure_ascii=False, indent=2)
+    resp = await solscan.get_acount_token(mint)
+    created_time =  resp.get('data', {}).get('tokenInfo', {}).get('created_time', None)
+    if created_time: created_time = datetime.utcfromtimestamp(created_time).strftime('%Y-%m-%d %H:%M:%S')
+      
+    short_dict={
+        'symbol': resp['data']['tokenInfo']['symbol'],
+        'name': resp['data']['tokenInfo']['name'],
+        'mint_address': resp['data']['account'],
+        'created_time': created_time
+        
+    }
+    #mint_address = f'<a href="https://dexscreener.com/solana/{short_dict["mint_address"]}">Chart</a>'
+    my_info = "\n".join([
+        f"symbol: {html.escape(short_dict['symbol'])}",
+        f"name: {html.escape(short_dict['name'])}",
+        f"mint_address: {short_dict['mint_address']} ",
+        f"created_time: {html.escape(short_dict['created_time'])}"
+    ])
+    
+    account_info = json.dumps(resp, ensure_ascii=False, indent=2)
     general_info = json.dumps(await solscan.get_general_info(mint), ensure_ascii=False, indent=2)
     
+    current_time_india = datetime.now(pytz.timezone('Asia/Kolkata'))
     message = (
         f"Адрес - *{mint}*\n"
-        f"Информация об аккаунте\n\n```json\n{account_info}```\n\n"
+        f"Информация об аккаунте\n\n```json\n{my_info}```\n\n"  # account_info
         f"Основная информация о токене\n\n```json\n{general_info}```\n\n"
-        f"Время фиксации - {datetime.now()}"
+        f"Время фиксации - {current_time_india.strftime('%Y-%m-%d %H:%M:%S')} (UTC: {datetime.now()})"
     )
     logger.success(message)
     await send_msg_log(message)
