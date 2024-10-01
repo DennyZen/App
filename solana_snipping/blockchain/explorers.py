@@ -91,7 +91,19 @@ class SolscanAPI:
 
         url = f"https://api-v2.solscan.io/v2/account?address={tokenaddr}"
         resp = await self.client.get(url, headers=headers)
-        return resp.json()
+
+        # Check if the response is valid and contains JSON data
+        if resp.status_code == 200:
+            try:
+                return resp.json()
+            except ValueError as e:
+                # Handle the case where the response is not valid JSON
+                print(f"Invalid JSON response received {resp.status_code=} {e} \n {resp=}")
+                return None
+        else:
+            print(f"Error: Received status code {resp.status_code}")
+            return None
+
 
     async def get_token_price(self, tokenaddr: str):
         url = f"https://price.jup.ag/v4/price?ids={tokenaddr}"
